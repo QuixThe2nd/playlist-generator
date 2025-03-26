@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Template</title>
+</head>
+<body>
+    <div id="TemplateConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="TemplateConfigForm">
+                    <h1>PlaylistGenerator</h1>
+                    <div class="selectContainer">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="PlaylistName">Playlist Name</label>
+                            <input id="PlaylistName" name="PlaylistName" type="text" is="emby-input" />
+                            <div class="fieldDescription">The name your playlist should have (Default: My Personal Mix)</div>
+                        </div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PlaylistDuration">Playlist Duration</label>
+                        <input id="PlaylistDuration" name="PlaylistDuration" type="number" is="emby-input" min="0" />
+                        <div class="fieldDescription">The duration the playlist should be in minutes (Default: 360, 6 hours)</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ExcludeTime">Minimum Song Time</label>
+                        <input id="ExcludeTime" name="ExcludeTime" type="number" is="emby-input" min="0" />
+                        <div class="fieldDescription">The minimum amount of seconds a song needs to be to be considered 
+                            (useful for excluding short jingles; Default: 0)</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PlaylistUserName">Playlist User</label>
+                        <input id="PlaylistUserName" name="PlaylistUserName" type="text" is="emby-input" />
+                        <div class="fieldDescription">The name of the user that wants the playlist</div>
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="ExplorationCoefficient">Exploration Coefficient</label>
+                        <select is="emby-select" id="ExplorationCoefficient" name="ExplorationCoefficient" class="emby-select-withcolor emby-select">
+                            <option id="expCoef1" value="1">1 (Almost no new music)</option>
+                            <option id="expCoef2" value="2">2 (Very little new music)</option>
+                            <option id="expCoef3" value="3">3 (Balanced)</option>
+                            <option id="expCoef4" value="4">4 (More new music)</option>
+                            <option id="expCoef5" value="5">5 (Almost no known music)</option>
+                        </select>
+                        <div class="fieldDescription">How much the algorithm should favour exploring new music vs. recommending known music</div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var TemplateConfig = {
+                pluginUniqueId: '975dde10-724f-4b72-8efc-91a1cb2d9510'
+            };
+
+            document.querySelector('#TemplateConfigPage')
+                .addEventListener('pageshow', function() {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#PlaylistName').value = config.PlaylistName;
+                        document.querySelector('#PlaylistDuration').value = config.PlaylistDuration;
+                        document.querySelector('#PlaylistUserName').value = config.PlaylistUserName;
+                        document.querySelector('#ExplorationCoefficient').value = config.ExplorationCoefficient;
+                        document.querySelector('#ExcludeTime').value = config.ExcludeTime;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+            document.querySelector('#TemplateConfigForm')
+                .addEventListener('submit', function(e) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
+                    config.PlaylistName = document.querySelector('#PlaylistName').value;
+                    config.PlaylistDuration = document.querySelector('#PlaylistDuration').value;
+                    config.PlaylistUserName = document.querySelector('#PlaylistUserName').value;
+                    config.ExplorationCoefficient = document.querySelector('#ExplorationCoefficient').value;
+                    config.ExcludeTime = document.querySelector('#ExcludeTime').value;
+                    ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+
+                e.preventDefault();
+                return false;
+            });
+        </script>
+    </div>
+</body>
+</html>
