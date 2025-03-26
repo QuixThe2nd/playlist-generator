@@ -42,10 +42,12 @@ public class PlaylistService(IPlaylistManager playlistManager, ILibraryManager l
         }
         else
         {
-            // if we run out of recommendations we just fill it up with songs similar to the ones we already have in the playlist
+            // if we run out of recommendations we just fill it up with songs similar to the ones
+            // we already have in the playlist
             while (totalSeconds < maxLengthSeconds)
             {
-                List<ScoredSong> randomFiller = recommender.RecommendSimilar([assembledPlaylist[new Random().Next(0, assembledPlaylist.Count)]], user);
+                List<ScoredSong> randomFiller = recommender.RecommendSimilar(
+                    [assembledPlaylist[new Random().Next(0, assembledPlaylist.Count)]], user);
                 foreach (ScoredSong filler in randomFiller)
                 {
                     if (seenGuids.Contains(filler.Song.Id))
@@ -104,11 +106,9 @@ public class PlaylistService(IPlaylistManager playlistManager, ILibraryManager l
 
         var playlist = playlists.FirstOrDefault(p => p.Name.Equals(playlistName));
 
-        if (playlist != null)
-        {
-            // Delete the playlist
-            var options = new DeleteOptions{DeleteFileLocation = true};
-            _libraryManager.DeleteItem(playlist, options);
-        }
+        if (playlist == null) return;
+        // Delete the playlist
+        var options = new DeleteOptions{DeleteFileLocation = true};
+        _libraryManager.DeleteItem(playlist, options);
     }
 }

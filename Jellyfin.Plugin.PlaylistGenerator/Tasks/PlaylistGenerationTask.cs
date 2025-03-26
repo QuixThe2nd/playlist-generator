@@ -19,7 +19,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
 {
     private readonly ILibraryManager _libraryManager = libraryManager;
     private readonly ILogger<PlaylistGenerationTask> _logger = logManager;
-    private readonly PluginConfiguration _config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+    private PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
     private readonly IUserManager _userManager = userManager;
     private readonly IUserDataManager _userDataManager = userDataManager;
     private readonly IPlaylistManager _playlistManager = playlistManager;
@@ -34,8 +34,8 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
     {
         cancellationToken.ThrowIfCancellationRequested(); 
 
-        _logger.LogInformation($"Start generating playlist with Exploration {_config.ExplorationCoefficient} " +
-                               $"for {_config.PlaylistUserName}");
+        _logger.LogInformation($"Start generating playlist with Exploration {Config.ExplorationCoefficient} " +
+                               $"for {Config.PlaylistUserName}");
         
         // first get all songs
         var songList = new List<ScoredSong>();
@@ -51,7 +51,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
 
         // filter out theme songs and songs that are too short
         var songs = allAudio.Where(song => song.IsThemeMedia == false && 
-                                           (int)((long)(song.RunTimeTicks ?? 0) / 10_000_000) > _config.ExcludeTime).ToList();
+                                           (int)((long)(song.RunTimeTicks ?? 0) / 10_000_000) > Config.ExcludeTime).ToList();
 
         if (songs.Count <= 0)
         {
@@ -62,11 +62,11 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         _logger.LogInformation($"Found {songs.Count} songs");
         
         // get user to identify listen data
-        User? currentUser = _userManager.GetUserByName(_config.PlaylistUserName);
+        User? currentUser = _userManager.GetUserByName(Config.PlaylistUserName);
 
         if (currentUser == null)
         {
-            _logger.LogWarning($"User: {_config.PlaylistUserName} not found. Aborting.");
+            _logger.LogWarning($"User: {Config.PlaylistUserName} not found. Aborting.");
             return Task.CompletedTask;
         }
 
@@ -79,7 +79,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
 
         // initialise the Recommenders and get some recommendations based on our top
         PlaylistService playlistServer = new(_playlistManager, _libraryManager);
-        Recommender playlistRecommender = new(_libraryManager, _userDataManager, _config.ExplorationCoefficient);
+        Recommender playlistRecommender = new(_libraryManager, _userDataManager, Config.ExplorationCoefficient);
 
         List<ScoredSong> topSongs = [.. songList.OrderByDescending(song => song.Score).Take(20)];
         List<ScoredSong> similarBySong = playlistRecommender.RecommendSimilar(topSongs, currentUser);
@@ -90,20 +90,22 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         allSongs.AddRange(similarByGenre);
 
         _logger.LogInformation($"Highest score: {allSongs[0].Score} for song: {allSongs[0].Song.Name}");
-        List<ScoredSong> assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, _config.PlaylistDuration, playlistRecommender, currentUser);
+        List<ScoredSong> assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, Config.PlaylistDuration, 
+            playlistRecommender, currentUser);
         PlaylistService.GentleShuffle(assembledPlaylist, 5);
 
         // check if playlist exists
-        var allPlaylists = _libraryManager.GetItemList(new InternalItemsQuery{IncludeItemTypes = [BaseItemKind.Playlist]});
+        var allPlaylists = _libraryManager.GetItemList(new InternalItemsQuery{IncludeItemTypes = 
+            [BaseItemKind.Playlist]});
 
-        if (allPlaylists.Any(playlist => playlist.Name.Equals(_config.PlaylistName))) 
+        if (allPlaylists.Any(playlist => playlist.Name.Equals(Config.PlaylistName))) 
         {
-            _logger.LogInformation($"Playlist {_config.PlaylistName} exists. Overwriting.");
-            playlistServer.RemovePlaylist(_config.PlaylistName);
+            _logger.LogInformation($"Playlist {Config.PlaylistName} exists. Overwriting.");
+            playlistServer.RemovePlaylist(Config.PlaylistName);
         }
 
         // make the playlist
-        playlistServer.CreatePlaylist(_config.PlaylistName, currentUser, assembledPlaylist);
+        playlistServer.CreatePlaylist(Config.PlaylistName, currentUser, assembledPlaylist);
 
         _logger.LogInformation($"Generated personal playlist for {currentUser.Username}.");
         return Task.CompletedTask;

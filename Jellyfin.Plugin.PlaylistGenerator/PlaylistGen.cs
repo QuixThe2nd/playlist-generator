@@ -11,7 +11,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
 
     private ILogger<Plugin> _logger;
-
+    
     public Plugin(
         IApplicationPaths applicationPaths, 
         IXmlSerializer xmlSerializer, 
