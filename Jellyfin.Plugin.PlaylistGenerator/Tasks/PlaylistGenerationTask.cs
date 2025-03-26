@@ -19,7 +19,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
 {
     private readonly ILibraryManager _libraryManager = libraryManager;
     private readonly ILogger<PlaylistGenerationTask> _logger = logManager;
-    private PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
+    private static PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
     private readonly IUserManager _userManager = userManager;
     private readonly IUserDataManager _userDataManager = userDataManager;
     private readonly IPlaylistManager _playlistManager = playlistManager;
@@ -62,7 +62,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         _logger.LogInformation($"Found {songs.Count} songs");
         
         // get user to identify listen data
-        User? currentUser = _userManager.GetUserByName(Config.PlaylistUserName);
+        var currentUser = _userManager.GetUserByName(Config.PlaylistUserName);
 
         if (currentUser == null)
         {
@@ -74,7 +74,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            songList.Add(new ScoredSong(song, currentUser, _userDataManager));
+            songList.Add(new ScoredSong(song, currentUser, _userDataManager, _libraryManager));
         }
 
         // initialise the Recommenders and get some recommendations based on our top
@@ -82,15 +82,17 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         Recommender playlistRecommender = new(_libraryManager, _userDataManager, Config.ExplorationCoefficient);
 
         List<ScoredSong> topSongs = [.. songList.OrderByDescending(song => song.Score).Take(20)];
-        List<ScoredSong> similarBySong = playlistRecommender.RecommendSimilar(topSongs, currentUser);
-        List<ScoredSong> similarByGenre = playlistRecommender.RecommendByGenre(topSongs, currentUser);
+        var similarBySong = playlistRecommender.RecommendSimilar(topSongs, currentUser);
+        var similarByGenre = playlistRecommender.RecommendByGenre(topSongs, currentUser);
+        var similarByArtist = playlistRecommender.RecommendByArtist(topSongs, currentUser);
 
         List<ScoredSong> allSongs = [..topSongs];
         allSongs.AddRange(similarBySong);
         allSongs.AddRange(similarByGenre);
+        allSongs.AddRange(similarByArtist);
 
         _logger.LogInformation($"Highest score: {allSongs[0].Score} for song: {allSongs[0].Song.Name}");
-        List<ScoredSong> assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, Config.PlaylistDuration, 
+        var assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, Config.PlaylistDuration, 
             playlistRecommender, currentUser);
         PlaylistService.GentleShuffle(assembledPlaylist, 5);
 

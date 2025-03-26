@@ -10,13 +10,9 @@ namespace Jellyfin.Plugin.PlaylistGenerator.Objects;
 
 public class Recommender(ILibraryManager libraryManager, IUserDataManager userDataManager, double explorationCoefficient = 3)
 {
-    private readonly double _explorationCoefficient = explorationCoefficient;
-    private readonly IUserDataManager _userDataManager = userDataManager;
-    private readonly ILibraryManager _libraryManager = libraryManager;
-
     public List<ScoredSong> RecommendSimilar(List<ScoredSong> songBasis, User user)
     {
-        List<ScoredSong> Recommendations = [];
+        List<ScoredSong> recommendations = [];
         foreach (ScoredSong song in songBasis)
         {
             var query = new InternalItemsQuery
@@ -26,21 +22,21 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
                 IncludeItemTypes = [BaseItemKind.Audio]
             };
 
-            var similarSongs = _libraryManager.GetItemList(query);
-            Recommendations.AddRange(similarSongs.Select(song => new ScoredSong(song, user, _userDataManager)).ToList());
+            var similarSongs = libraryManager.GetItemList(query);
+            recommendations.AddRange(similarSongs.Select(song => 
+                new ScoredSong(song, user, userDataManager, libraryManager)).ToList());
         }
-        return Recommendations;
+        return recommendations;
     }
 
     // songs by the same artist are more similar than songs of the same genre (in general)
     public List<ScoredSong> RecommendByArtist(List<ScoredSong> songBasis, User user)
     {
-        List<ScoredSong> Recommendations = [];
+        List<ScoredSong> recommendations = [];
         HashSet<Guid> allArtists = [];
-        foreach (ScoredSong song in songBasis)
+        foreach (var song in songBasis)
         {
-            // TODO: Add artists here
-            break;
+            allArtists.Add(song.ArtistId);
         }
 
         var query = new InternalItemsQuery
@@ -50,19 +46,20 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
             IncludeItemTypes = [BaseItemKind.Audio]
         };
 
-        var similarSongs = _libraryManager.GetItemList(query);
-        List<ScoredSong> potentialSongs = similarSongs.Select(song => new ScoredSong(song, user, _userDataManager)).ToList();
+        var similarSongs = libraryManager.GetItemList(query);
+        List<ScoredSong> potentialSongs = similarSongs.Select(song => 
+            new ScoredSong(song, user, userDataManager, libraryManager)).ToList();
         potentialSongs = FilterByExploration(potentialSongs);
-        Recommendations.AddRange(potentialSongs);
+        recommendations.AddRange(potentialSongs);
 
-        return Recommendations;
+        return recommendations;
     }
 
     public List<ScoredSong> RecommendByGenre(List<ScoredSong> songBasis, User user)
     {
-        List<ScoredSong> Recommendations = [];
+        List<ScoredSong> recommendations = [];
         HashSet<string> allGenres = [];
-        foreach (ScoredSong song in songBasis)
+        foreach (var song in songBasis)
         {
             var genres = song.Song.Genres;
             allGenres.UnionWith(genres);
@@ -75,20 +72,21 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
             IncludeItemTypes = [BaseItemKind.Audio]
         };
 
-        var similarSongs = _libraryManager.GetItemList(query);
-        List<ScoredSong> potentialSongs = similarSongs.Select(song => new ScoredSong(song, user, _userDataManager)).ToList();
+        var similarSongs = libraryManager.GetItemList(query);
+        var potentialSongs = similarSongs.Select(song => 
+            new ScoredSong(song, user, userDataManager, libraryManager)).ToList();
         potentialSongs = FilterByExploration(potentialSongs);
 
-        Recommendations.AddRange(potentialSongs);
-        return Recommendations;
+        recommendations.AddRange(potentialSongs);
+        return recommendations;
     }
 
     private List<ScoredSong> FilterByExploration(List<ScoredSong> potentialSongs)
     {
         List<ScoredSong> filteredSongs = [];
-        double minScore = potentialSongs.Min(song => song.Score);
-        double maxScore = potentialSongs.Max(song => song.Score);
-        filteredSongs = _explorationCoefficient switch
+        var minScore = potentialSongs.Min(song => song.Score);
+        var maxScore = potentialSongs.Max(song => song.Score);
+        filteredSongs = explorationCoefficient switch
         {
             1 => potentialSongs.Where(song => song.Score > maxScore / 2).ToList(),
             2 => potentialSongs.Where(song => song.Score > Math.Min(maxScore, 0.2) / 4).ToList(),
