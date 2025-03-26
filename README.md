@@ -2,7 +2,7 @@
 
 ### Manifest url
 ```bash
-https://...
+https://raw.githubusercontent.com/Eeeeelias/playlist-generator/refs/heads/main/manifest.json
 ```
 
 ### Requirements
