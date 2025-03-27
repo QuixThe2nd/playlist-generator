@@ -32,7 +32,7 @@ public class PlaylistService(IPlaylistManager playlistManager, ILibraryManager l
             }
 
             assembledPlaylist.Add(songs[i]);
-            totalSeconds += (int)((long)(songs[i].Song.RunTimeTicks ?? 0) / 10_000_000);
+            totalSeconds += (int)((long)(songs[i].Song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond);
             seenGuids.Add(songs[i].Song.Id);
             i++;
         }
@@ -50,13 +50,10 @@ public class PlaylistService(IPlaylistManager playlistManager, ILibraryManager l
                     [assembledPlaylist[new Random().Next(0, assembledPlaylist.Count)]], user);
                 foreach (ScoredSong filler in randomFiller)
                 {
-                    if (seenGuids.Contains(filler.Song.Id))
-                    {
-                        continue;
-                    }
-
+                    if (seenGuids.Contains(filler.Song.Id) || filler.Song.ParentId == Guid.Empty) continue;
+                    
                     assembledPlaylist.Add(filler);
-                    totalSeconds += (int)((long)(filler.Song.RunTimeTicks ?? 0) / 10_000_000);
+                    totalSeconds += (int)((long)(filler.Song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond);
                     seenGuids.Add(filler.Song.Id);
                 }
             }

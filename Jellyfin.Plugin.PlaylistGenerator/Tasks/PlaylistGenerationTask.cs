@@ -109,6 +109,10 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         allSongs.AddRange(similarBySong);
         allSongs.AddRange(similarByGenre);
         allSongs.AddRange(similarByArtist);
+        
+        // prune songs that are too short or have no ParentId 
+        allSongs = allSongs.Where(song => (song.Song.RunTimeTicks ?? 0 / TimeSpan.TicksPerSecond) >= Config.ExcludeTime && 
+                                          song.Song.ParentId != Guid.Empty).ToList();
 
         _logger.LogInformation($"Highest score: {allSongs[0].Score} for song: {allSongs[0].Song.Name}");
         var assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, Config.PlaylistDuration, 
