@@ -53,7 +53,6 @@ public class ScoredSong : BaseItem
             plays += int.Parse(row["Column0"]) >= songLengthSeconds * 0.8 ? 1 : -1;
         }
         plays = Math.Max(plays, 0);
-        Console.WriteLine($"Plays: {plays}, Normalized: {(double)plays / MaxPlaysSevenDays}");
         return (double)plays / MaxPlaysSevenDays;
     }
     

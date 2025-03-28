@@ -61,22 +61,42 @@ public class PlaylistService(IPlaylistManager playlistManager, ILibraryManager l
         return assembledPlaylist;
     }
 
-    public static void GentleShuffle<T>(List<T> array, int k)
+    public static List<T> GentleShuffle<T>(List<T> array, int k)
     {
         Random random = new();
+        List<T> shuffledArray = new(array);
+        HashSet<int> usedIndices = [];
+        var n = array.Count;
 
-        for (int i = 0; i < array.Count; i++)
+        for (int i = 0; i < n; i++)
         {
-            // Determine the range within k positions where the swap can happen
-            int start = Math.Max(0, i - k);
-            int end = Math.Min(array.Count - 1, i + k);
+            var availableIndices = new HashSet<int>(Enumerable.Range(Math.Max(0, i - k),
+                Math.Min(n, i + k + 1) - Math.Max(0, i - k)));
+            availableIndices.ExceptWith(usedIndices);
+            var nextAvailableIndices = new HashSet<int>(Enumerable.Range(Math.Max(0, i + 1 - k),
+                Math.Min(n, i + 1 + k + 1) - Math.Max(0, i + 1 - k)));
+            nextAvailableIndices.ExceptWith(usedIndices);
 
-            // Choose a random index within the range to swap with
-            int swapIndex = random.Next(start, end + 1);
+            if (availableIndices.Count == 0 || (nextAvailableIndices.Count == 0 && i < n - 1))
+            {
+                break;
+            }
+            
+            int newIdx;
+            if (i < n - 1 && availableIndices.Min() != nextAvailableIndices.Min())
+            {
+                newIdx = availableIndices.Min();
+            }
+            else
+            {
+                // get a random index from the available indices
+                newIdx = availableIndices.ToList()[random.Next(availableIndices.Count)];
+            }
 
-            // Swap the elements
-            (array[swapIndex], array[i]) = (array[i], array[swapIndex]);
+            shuffledArray[newIdx] = array[i];
+            usedIndices.Add(newIdx);
         }
+        return shuffledArray;
     }
 
     public void CreatePlaylist(string playlistName, User user, List<ScoredSong> items)

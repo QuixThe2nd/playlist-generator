@@ -85,10 +85,9 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
 
     private List<ScoredSong> FilterByExploration(List<ScoredSong> potentialSongs)
     {
-        List<ScoredSong> filteredSongs = [];
         var minScore = potentialSongs.Min(song => song.Score);
         var maxScore = potentialSongs.Max(song => song.Score);
-        filteredSongs = explorationCoefficient switch
+        var filteredSongs = explorationCoefficient switch
         {
             1 => potentialSongs.Where(song => song.Score > maxScore / 2).ToList(),
             2 => potentialSongs.Where(song => song.Score > Math.Min(maxScore, 0.2) / 4).ToList(),
