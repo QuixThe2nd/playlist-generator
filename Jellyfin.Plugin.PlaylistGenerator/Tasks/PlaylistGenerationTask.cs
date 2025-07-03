@@ -121,7 +121,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         _logger.LogInformation($"Highest score: {allSongs[0].Score} for song: {allSongs[0].Song.Name}");
         var assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, Config.PlaylistDuration, 
             playlistRecommender, currentUser);
-        assembledPlaylist = PlaylistService.GentleShuffle(assembledPlaylist, 5);
+        assembledPlaylist = PlaylistService.GentleShuffle(assembledPlaylist, 10);
 
         // check if playlist exists
         var allPlaylists = _libraryManager.GetItemList(new InternalItemsQuery{IncludeItemTypes = 
