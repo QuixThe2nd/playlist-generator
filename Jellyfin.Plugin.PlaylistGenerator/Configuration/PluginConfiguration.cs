@@ -18,6 +18,6 @@ namespace Jellyfin.Plugin.PlaylistGenerator.Configuration
 
         public int ExcludeTime { get; set; } = 0;
         
-        public bool ExperimentalRecommender { get; set; } = false;
+        public bool ExperimentalFilter { get; set; } = false;
     }
 }

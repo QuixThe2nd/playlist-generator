@@ -44,6 +44,13 @@
                         </select>
                         <div class="fieldDescription">How much the algorithm should favour exploring new music vs. recommending known music</div>
                     </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="ExperimentalFilter" name="ExperimentalFilter" type="checkbox" is="emby-checkbox" />
+                            <span>Use the experimental recommender instead of the default one. 
+                            This will use a different algorithm to retrieve songs you might like.</span>
+                        </label>
+                    </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -66,6 +73,7 @@
                         document.querySelector('#PlaylistUserName').value = config.PlaylistUserName;
                         document.querySelector('#ExplorationCoefficient').value = config.ExplorationCoefficient;
                         document.querySelector('#ExcludeTime').value = config.ExcludeTime;
+                        document.querySelector('#ExperimentalFilter').checked = config.ExperimentalFilter;
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -79,6 +87,7 @@
                     config.PlaylistUserName = document.querySelector('#PlaylistUserName').value;
                     config.ExplorationCoefficient = document.querySelector('#ExplorationCoefficient').value;
                     config.ExcludeTime = document.querySelector('#ExcludeTime').value;
+                    config.ExperimentalFilter = document.querySelector('#ExperimentalFilter').checked;
                     ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });

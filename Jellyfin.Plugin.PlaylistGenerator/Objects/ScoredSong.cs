@@ -21,6 +21,7 @@ public class ScoredSong : BaseItem
     public double Score { get; set; }
     public Guid AlbumId { get; set; }
     public Guid ArtistId { get; set; }
+    public bool IsDisliked { get; set; }
 
     public ScoredSong(BaseItem song, User user, IUserDataManager userDataManager, ILibraryManager libraryManager, 
         ActivityDatabase activityDatabase)
@@ -33,6 +34,7 @@ public class ScoredSong : BaseItem
         Score = CalculateScore();
         AlbumId = song.ParentId;
         ArtistId = GetAristId(song);
+        IsDisliked = false; // calculate this later
     }
     
     private double GetNormalizedPlaysSevenDays()

@@ -98,7 +98,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         }
 
         // initialise the Recommenders and get some recommendations based on our top
-        bool experimentalFilter = Config.ExperimentalRecommender;
+        var experimentalFilter = Config.ExperimentalFilter;
         PlaylistService playlistServer = new(_playlistManager, _libraryManager);
         Recommender playlistRecommender = new(_libraryManager, _userDataManager, _activityDatabase, Config.ExplorationCoefficient);
         
