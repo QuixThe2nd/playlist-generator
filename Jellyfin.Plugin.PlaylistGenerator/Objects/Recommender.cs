@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices.ComTypes;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Entities;
 
@@ -31,7 +32,7 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
     }
 
     // songs by the same artist are more similar than songs of the same genre (in general)
-    public List<ScoredSong> RecommendByArtist(List<ScoredSong> songBasis, User user)
+    public List<ScoredSong> RecommendByArtist(List<ScoredSong> songBasis, User user, bool experimentalRecommend)
     {
         List<ScoredSong> recommendations = [];
         HashSet<Guid> allArtists = [];
@@ -51,13 +52,15 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
         var similarSongs = libraryManager.GetItemList(query);
         var potentialSongs = similarSongs.Select(song => 
             new ScoredSong(song, user, userDataManager, libraryManager, activityDatabase)).ToList();
-        potentialSongs = FilterByExploration(potentialSongs);
+        
+        potentialSongs = experimentalRecommend ? FilterByExplorationExperimental(potentialSongs) : FilterByExploration(potentialSongs);
+        
         recommendations.AddRange(potentialSongs);
 
         return recommendations;
     }
 
-    public List<ScoredSong> RecommendByGenre(List<ScoredSong> songBasis, User user)
+    public List<ScoredSong> RecommendByGenre(List<ScoredSong> songBasis, User user, bool experimentalRecommend)
     {
         List<ScoredSong> recommendations = [];
         HashSet<string> allGenres = [];
@@ -77,12 +80,32 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
         var similarSongs = libraryManager.GetItemList(query);
         var potentialSongs = similarSongs.Select(song => 
             new ScoredSong(song, user, userDataManager, libraryManager, activityDatabase)).ToList();
-        potentialSongs = FilterByExploration(potentialSongs);
+        
+        potentialSongs = experimentalRecommend ? FilterByExplorationExperimental(potentialSongs) : FilterByExploration(potentialSongs);
 
         recommendations.AddRange(potentialSongs);
         return recommendations;
     }
 
+    public List<ScoredSong> RecommendByFavourite(List<ScoredSong> songBasis, User user)
+    {
+        List<ScoredSong> recommendations = [];
+        // retrieve favourite songs
+        var query = new InternalItemsQuery
+        {
+            IncludeItemTypes = [BaseItemKind.Audio]
+        };
+        var favouriteSongs = libraryManager.GetItemList(query);
+        
+        favouriteSongs = favouriteSongs.Where(song => song.IsFavoriteOrLiked(user)).ToList();
+        
+        var potentialSongs = favouriteSongs.Select(song => 
+            new ScoredSong(song, user, userDataManager, libraryManager, activityDatabase)).ToList();
+        recommendations.AddRange(potentialSongs);
+        return recommendations;
+    }
+
+    
     private List<ScoredSong> FilterByExploration(List<ScoredSong> potentialSongs)
     {
         var minScore = potentialSongs.Min(song => song.Score);
@@ -97,5 +120,40 @@ public class Recommender(ILibraryManager libraryManager, IUserDataManager userDa
             _ => potentialSongs,
         };
         return filteredSongs;
+    }
+    
+    private List<ScoredSong> FilterByExplorationExperimental(List<ScoredSong> potentialSongs)
+    {
+        // sort by score
+        if (potentialSongs.Count == 0) {return [];}
+        if (potentialSongs.Count == 1) {return potentialSongs;}
+        if ((int)explorationCoefficient == 3) {return potentialSongs;}
+        
+        double multiplier = new [] { 0.5, 0.8, 1.0, 1.2, 1.5 }[(int)explorationCoefficient - 1];
+        int count = potentialSongs.Count;
+        int nonZeroScores = potentialSongs.Count(song => song.Score > 0); // K non-zero songs
+        if (nonZeroScores < 10) {nonZeroScores = count;} // if there are less than 10 non-zero scores, use all songs
+        double epsilon = 0.5; // probability for the song with the lowest non-zero score
+        double lambda = -nonZeroScores / Math.Log(epsilon, 2) * multiplier; // λ=−K/ln(ε) * explorationCoefficient
+        
+        potentialSongs = potentialSongs.OrderByDescending(song => song.Score).ToList();
+        
+        double[] probabilities = new double[count];
+        
+        for (int i = 0; i < count; i++)
+        {
+            probabilities[i] = Math.Exp(-i / lambda);
+        }
+        
+        var chosenSongs = SampleFromDistribution(potentialSongs, probabilities);
+        return chosenSongs;
+    }
+    
+    private List<ScoredSong> SampleFromDistribution(List<ScoredSong> songs, double[] probabilities)
+    {
+        Random random = new();
+        List<ScoredSong> sampledSongs = [];
+        sampledSongs.AddRange(songs.Where((t, i) => random.NextDouble() < probabilities[i]));
+        return sampledSongs;
     }
 }

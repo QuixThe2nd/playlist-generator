@@ -17,5 +17,7 @@ namespace Jellyfin.Plugin.PlaylistGenerator.Configuration
         public double ExplorationCoefficient { get; set; } = 3;
 
         public int ExcludeTime { get; set; } = 0;
+        
+        public bool ExperimentalRecommender { get; set; } = false;
     }
 }

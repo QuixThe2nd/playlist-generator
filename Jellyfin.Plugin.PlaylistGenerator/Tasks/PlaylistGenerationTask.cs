@@ -42,7 +42,7 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
     public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
+        
         try
         {
             _activityDatabase = new ActivityDatabase(_logger, _paths, _fileSystem, cancellationToken);
@@ -70,7 +70,8 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
 
         // filter out theme songs and songs that are too short
         var songs = allAudio.Where(song => song.IsThemeMedia == false && 
-                                           (int)((long)(song.RunTimeTicks ?? 0) / 10_000_000) > Config.ExcludeTime).ToList();
+                                           (int)((long)(song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond) >
+                                           Config.ExcludeTime).ToList();
 
         if (songs.Count <= 0)
         {
@@ -97,18 +98,21 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         }
 
         // initialise the Recommenders and get some recommendations based on our top
+        bool experimentalFilter = Config.ExperimentalRecommender;
         PlaylistService playlistServer = new(_playlistManager, _libraryManager);
         Recommender playlistRecommender = new(_libraryManager, _userDataManager, _activityDatabase, Config.ExplorationCoefficient);
-
+        
         List<ScoredSong> topSongs = [.. songList.OrderByDescending(song => song.Score).Take(20)];
         var similarBySong = playlistRecommender.RecommendSimilar(topSongs, currentUser);
-        var similarByGenre = playlistRecommender.RecommendByGenre(topSongs, currentUser);
-        var similarByArtist = playlistRecommender.RecommendByArtist(topSongs, currentUser);
+        var similarByGenre = playlistRecommender.RecommendByGenre(topSongs, currentUser, experimentalFilter);
+        var similarByArtist = playlistRecommender.RecommendByArtist(topSongs, currentUser, experimentalFilter);
+        var favouriteSongs = playlistRecommender.RecommendByFavourite(topSongs, currentUser);
 
         List<ScoredSong> allSongs = [..topSongs];
         allSongs.AddRange(similarBySong);
         allSongs.AddRange(similarByGenre);
         allSongs.AddRange(similarByArtist);
+        allSongs.AddRange(favouriteSongs);
         
         // prune songs that are too short or have no ParentId 
         allSongs = allSongs.Where(song => (song.Song.RunTimeTicks ?? 0 / TimeSpan.TicksPerSecond) >= Config.ExcludeTime 
