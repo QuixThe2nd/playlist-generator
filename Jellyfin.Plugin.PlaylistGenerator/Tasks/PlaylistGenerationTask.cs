@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Jellyfin.Plugin.PlaylistGenerator.Configuration;
 using Microsoft.Extensions.Logging;
 using MediaBrowser.Model.Tasks;
@@ -5,10 +6,12 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Entities;
 
 using Jellyfin.Data.Entities;
+using Jellyfin.Data.Entities.Libraries;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Playlists;
 using Jellyfin.Plugin.PlaylistGenerator.Objects;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Model.IO;
 
 namespace Jellyfin.Plugin.PlaylistGenerator.Tasks;
@@ -56,31 +59,6 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         _logger.LogInformation($"Start generating playlist with Exploration {Config.ExplorationCoefficient} " +
                                $"for {Config.PlaylistUserName}");
         
-        // first get all songs
-        var songList = new List<ScoredSong>();
-        var songQuery = new InternalItemsQuery{IncludeItemTypes = [BaseItemKind.Audio], Recursive = true};
-
-        var allAudio = _libraryManager.GetItemList(songQuery);
-
-        if (allAudio.Count <= 0)
-        {
-            _logger.LogWarning("No music found.");
-            return Task.CompletedTask;
-        }
-
-        // filter out theme songs and songs that are too short
-        var songs = allAudio.Where(song => song.IsThemeMedia == false && 
-                                           (int)((long)(song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond) >
-                                           Config.ExcludeTime).ToList();
-
-        if (songs.Count <= 0)
-        {
-            _logger.LogWarning("No music found after filtering.");
-            return Task.CompletedTask;
-        }
-
-        _logger.LogInformation($"Found {songs.Count} songs");
-        
         // get user to identify listen data
         var currentUser = _userManager.GetUserByName(Config.PlaylistUserName);
 
@@ -89,6 +67,57 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
             _logger.LogWarning($"User: {Config.PlaylistUserName} not found. Aborting.");
             return Task.CompletedTask;
         }
+        
+        // get all libraries and then filter for music libraries
+        var allFolders = _libraryManager.GetUserRootFolder()
+            .GetChildren(currentUser, true)
+            .OfType<Folder>()
+            .ToList();
+        
+        var musicLibraries = allFolders.Select(folder => folder as ICollectionFolder)
+            .Where(collectionFolder => collectionFolder?.CollectionType == CollectionType.music).ToList();
+
+        // first get all songs
+        var songList = new List<ScoredSong>();
+
+        // search for songs in the music libraries
+        var allAudio = new List<BaseItem>();
+        foreach (var library in musicLibraries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (library == null)
+            {
+                _logger.LogWarning("No library here, skipping.");
+                continue;
+            }
+            _logger.LogInformation($"Searching for songs in library: {library.Name}");
+            var songQuery = new InternalItemsQuery{
+                IncludeItemTypes = [BaseItemKind.Audio], 
+                ParentId = library.Id,
+                Recursive = true
+            };
+            var audioItems = _libraryManager.GetItemList(songQuery);
+            allAudio.AddRange(audioItems);
+        }
+
+        if (allAudio.Count <= 0)
+        {
+            _logger.LogWarning("No music found.");
+            return Task.CompletedTask;
+        }
+        
+        // filter out theme songs and songs that are too short
+        _logger.LogInformation($"Found {allAudio.Count} songs, filtering out theme songs and short songs.");
+        var noThemeSongs = allAudio.Where(song => song.IsThemeMedia == false).ToList();
+        var songs = noThemeSongs.Where(song => (int)((long)(song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond) > Config.ExcludeTime).ToList();
+        
+        if (songs.Count <= 0)
+        {
+            _logger.LogWarning("No music found after filtering.");
+            return Task.CompletedTask;
+        }
+
+        _logger.LogInformation($"Found {songs.Count} songs");
 
         foreach (var song in songs)
         {
