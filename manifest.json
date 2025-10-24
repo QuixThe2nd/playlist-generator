@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Eeeeelias/playlist-generator/refs/heads/main/images/logo.png",
     "versions": [
       {
+        "version": "1.4.1.0",
+        "changelog": "Added Jellyfin 10.11.0 compatability",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/Eeeeelias/playlist-generator/releases/download/v1.4.1.0/v1.4.1.0-release.zip",
+        "checksum": "c315035ece2c18b511f7372563002501",
+        "timestamp": "2025-10-24T15:47:12Z"
+      },
+      {
         "version": "1.4.0.0",
         "changelog": "Added ability to select libraries",
         "targetAbi": "10.10.7.0",
