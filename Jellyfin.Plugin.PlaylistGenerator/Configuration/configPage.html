@@ -1,130 +1,271 @@
 <!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html">
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Template</title>
+    <title>Playlist Generator</title>
+    <style>
+        .playlist-item {
+            border: 1px solid #444;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background: #1a1a1a;
+        }
+        .playlist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .playlist-header h3 {
+            margin: 0;
+        }
+        .playlist-controls {
+            display: flex;
+            gap: 10px;
+        }
+        .add-playlist-btn {
+            margin-bottom: 20px;
+        }
+        .playlist-form {
+            display: none;
+        }
+        .playlist-form.editing {
+            display: block;
+        }
+        .playlist-summary {
+            color: #999;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
-    <div id="TemplateConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div id="TemplateConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" 
+         data-require="emby-input,emby-button,emby-select,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
-                <form id="TemplateConfigForm">
-                    <h1>PlaylistGenerator</h1>
-                    <div class="selectContainer">
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="PlaylistName">Playlist Name</label>
-                            <input id="PlaylistName" name="PlaylistName" type="text" is="emby-input" />
-                            <div class="fieldDescription">The name your playlist should have (Default: My Personal Mix)</div>
-                        </div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="PlaylistDuration">Playlist Duration</label>
-                        <input id="PlaylistDuration" name="PlaylistDuration" type="number" is="emby-input" min="0" />
-                        <div class="fieldDescription">The duration the playlist should be in minutes (Default: 360, 6 hours)</div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="ExcludeTime">Minimum Song Time</label>
-                        <input id="ExcludeTime" name="ExcludeTime" type="number" is="emby-input" min="0" />
-                        <div class="fieldDescription">The minimum amount of seconds a song needs to be to be considered 
-                            (useful for excluding short jingles; Default: 0)</div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="PlaylistUserName">Playlist User</label>
-                        <input id="PlaylistUserName" name="PlaylistUserName" type="text" is="emby-input" />
-                        <div class="fieldDescription">The name of the user that wants the playlist</div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel">Select Libraries</label>
-                        <div id="LibraryCheckboxes"></div>
-                        <div class="fieldDescription">Choose the libraries to source music from</div>
-                    </div>
+                <h1>PlaylistGenerator</h1>
+                
+                <button is="emby-button" type="button" class="raised add-playlist-btn emby-button" id="addPlaylistBtn">
+                    <span>Add New Playlist</span>
+                </button>
 
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="ExplorationCoefficient">Exploration Coefficient</label>
-                        <select is="emby-select" id="ExplorationCoefficient" name="ExplorationCoefficient" class="emby-select-withcolor emby-select">
-                            <option id="expCoef1" value="1">1 (Almost no new music)</option>
-                            <option id="expCoef2" value="2">2 (Very little new music)</option>
-                            <option id="expCoef3" value="3">3 (Balanced)</option>
-                            <option id="expCoef4" value="4">4 (More new music)</option>
-                            <option id="expCoef5" value="5">5 (Almost no known music)</option>
-                        </select>
-                        <div class="fieldDescription">How much the algorithm should favour exploring new music vs. recommending known music</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="ExperimentalFilter" name="ExperimentalFilter" type="checkbox" is="emby-checkbox" />
-                            <span>Use the experimental recommender instead of the default one. 
-                            This will use a different algorithm to retrieve songs you might like.</span>
-                        </label>
-                    </div>
-                    <div>
-                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
-                            <span>Save</span>
-                        </button>
-                    </div>
-                </form>
+                <div id="playlistsContainer"></div>
+
+                <div>
+                    <button is="emby-button" type="button" class="raised button-submit block emby-button" id="saveAllBtn">
+                        <span>Save All Playlists</span>
+                    </button>
+                </div>
             </div>
         </div>
+
         <script type="text/javascript">
             var TemplateConfig = {
                 pluginUniqueId: '975dde10-724f-4b72-8efc-91a1cb2d9510'
             };
             
-            var selectedLibraries = []            
-            
-            document.querySelector('#TemplateConfigPage')
-                .addEventListener('pageshow', function() {
-                    Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
-                        document.querySelector('#PlaylistName').value = config.PlaylistName;
-                        document.querySelector('#PlaylistDuration').value = config.PlaylistDuration;
-                        document.querySelector('#PlaylistUserName').value = config.PlaylistUserName;
-                        console.log(config.SelectedLibraryIds)
-                        selectedLibraries = config.SelectedLibraryIds;
-                        document.querySelector('#ExplorationCoefficient').value = config.ExplorationCoefficient;
-                        document.querySelector('#ExcludeTime').value = config.ExcludeTime;
-                        document.querySelector('#ExperimentalFilter').checked = config.ExperimentalFilter;
-                        Dashboard.hideLoadingMsg();
-                    });
-                });
+            var playlists = [];
+            var allLibraries = [];
+            var editingIndex = -1;
 
+            // Load libraries once
             ApiClient.getJSON(ApiClient.getUrl("Library/VirtualFolders"))
                 .then(function (libraries) {
-                    var container = document.querySelector('#LibraryCheckboxes');
-                    container.innerHTML = '';
-
-                    libraries.forEach(function (lib) {
-                        if (lib.CollectionType === 'music') {
-                            var id = 'lib' + lib.ItemId;
-                            var checked = (selectedLibraries || []).includes(lib.ItemId) ? 'checked' : '';
-                            var html =
-                                '<label class="emby-checkbox-label">' +
-                                '<input is="emby-checkbox" type="checkbox" id="' + id + '" value="' + lib.ItemId + '" ' + checked + ' />' +
-                                '<span>' + lib.Name + '</span>' +
-                                '</label>';
-                            container.insertAdjacentHTML('beforeend', html);
-                        }
+                    allLibraries = libraries.filter(function(lib) {
+                        return lib.CollectionType === 'music';
                     });
                 });
-            
-            document.querySelector('#TemplateConfigForm')
-                .addEventListener('submit', function(e) {
+
+            function createPlaylistItemHTML(playlist, index) {
+                var summary = playlist.PlaylistUserName + ' • ' + playlist.PlaylistDuration + ' min • ' +
+                             'Exploration: ' + playlist.ExplorationCoefficient;
+                
+                return `
+                    <div class="playlist-item" data-index="${index}">
+                        <div class="playlist-header">
+                            <div>
+                                <h3>${playlist.PlaylistName}</h3>
+                                <div class="playlist-summary">${summary}</div>
+                            </div>
+                            <div class="playlist-controls">
+                                <button is="emby-button" type="button" class="emby-button" onclick="editPlaylist(${index})">
+                                    <span>Edit</span>
+                                </button>
+                                <button is="emby-button" type="button" class="emby-button" onclick="deletePlaylist(${index})">
+                                    <span>Delete</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="playlist-form" id="form-${index}">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="PlaylistName-${index}">Playlist Name</label>
+                                <input id="PlaylistName-${index}" type="text" is="emby-input" value="${playlist.PlaylistName}" />
+                                <div class="fieldDescription">The name your playlist should have</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="PlaylistDuration-${index}">Playlist Duration</label>
+                                <input id="PlaylistDuration-${index}" type="number" is="emby-input" min="0" value="${playlist.PlaylistDuration}" />
+                                <div class="fieldDescription">The duration the playlist should be in minutes</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="ExcludeTime-${index}">Minimum Song Time</label>
+                                <input id="ExcludeTime-${index}" type="number" is="emby-input" min="0" value="${playlist.ExcludeTime}" />
+                                <div class="fieldDescription">The minimum amount of seconds a song needs to be (useful for excluding short jingles)</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="PlaylistUserName-${index}">Playlist User</label>
+                                <input id="PlaylistUserName-${index}" type="text" is="emby-input" value="${playlist.PlaylistUserName}" />
+                                <div class="fieldDescription">The name of the user that wants the playlist</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel">Select Libraries</label>
+                                <div id="LibraryCheckboxes-${index}"></div>
+                                <div class="fieldDescription">Choose the libraries to source music from</div>
+                            </div>
+                            <div class="selectContainer">
+                                <label class="selectLabel" for="ExplorationCoefficient-${index}">Exploration Coefficient</label>
+                                <select is="emby-select" id="ExplorationCoefficient-${index}" class="emby-select-withcolor emby-select">
+                                    <option value="1" ${playlist.ExplorationCoefficient == 1 ? 'selected' : ''}>1 (Almost no new music)</option>
+                                    <option value="2" ${playlist.ExplorationCoefficient == 2 ? 'selected' : ''}>2 (Very little new music)</option>
+                                    <option value="3" ${playlist.ExplorationCoefficient == 3 ? 'selected' : ''}>3 (Balanced)</option>
+                                    <option value="4" ${playlist.ExplorationCoefficient == 4 ? 'selected' : ''}>4 (More new music)</option>
+                                    <option value="5" ${playlist.ExplorationCoefficient == 5 ? 'selected' : ''}>5 (Almost no known music)</option>
+                                </select>
+                                <div class="fieldDescription">How much the algorithm should favour exploring new music vs. recommending known music</div>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="ExperimentalFilter-${index}" type="checkbox" is="emby-checkbox" ${playlist.ExperimentalFilter ? 'checked' : ''} />
+                                    <span>Use the experimental recommender instead of the default one. 
+                                    This will use a different algorithm to retrieve songs you might like.</span>
+                                </label>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <button is="emby-button" type="button" class="raised emby-button" onclick="savePlaylist(${index})">
+                                    <span>Save</span>
+                                </button>
+                                <button is="emby-button" type="button" class="emby-button" onclick="cancelEdit(${index})">
+                                    <span>Cancel</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function renderPlaylists() {
+                var container = document.getElementById('playlistsContainer');
+                container.innerHTML = '';
+                
+                playlists.forEach(function(playlist, index) {
+                    container.insertAdjacentHTML('beforeend', createPlaylistItemHTML(playlist, index));
+                    
+                    // Populate library checkboxes for this playlist
+                    var libContainer = document.getElementById('LibraryCheckboxes-' + index);
+                    libContainer.innerHTML = '';
+                    allLibraries.forEach(function(lib) {
+                        var checked = (playlist.SelectedLibraryIds || []).includes(lib.ItemId) ? 'checked' : '';
+                        var html =
+                            '<label class="emby-checkbox-label">' +
+                            '<input is="emby-checkbox" type="checkbox" class="lib-checkbox-' + index + '" value="' + lib.ItemId + '" ' + checked + ' />' +
+                            '<span>' + lib.Name + '</span>' +
+                            '</label>';
+                        libContainer.insertAdjacentHTML('beforeend', html);
+                    });
+                });
+            }
+
+            function editPlaylist(index) {
+                // Close any other open forms
+                document.querySelectorAll('.playlist-form').forEach(function(form) {
+                    form.classList.remove('editing');
+                });
+                
+                // Open this form
+                document.getElementById('form-' + index).classList.add('editing');
+                editingIndex = index;
+            }
+
+            function cancelEdit(index) {
+                document.getElementById('form-' + index).classList.remove('editing');
+                editingIndex = -1;
+            }
+
+            function savePlaylist(index) {
+                playlists[index] = {
+                    PlaylistName: document.getElementById('PlaylistName-' + index).value,
+                    PlaylistDuration: parseInt(document.getElementById('PlaylistDuration-' + index).value),
+                    ExcludeTime: parseInt(document.getElementById('ExcludeTime-' + index).value),
+                    PlaylistUserName: document.getElementById('PlaylistUserName-' + index).value,
+                    SelectedLibraryIds: Array.from(document.querySelectorAll('.lib-checkbox-' + index + ':checked')).map(cb => cb.value),
+                    ExplorationCoefficient: parseFloat(document.getElementById('ExplorationCoefficient-' + index).value),
+                    ExperimentalFilter: document.getElementById('ExperimentalFilter-' + index).checked
+                };
+                
+                renderPlaylists();
+                Dashboard.alert('Playlist updated. Click "Save All Playlists" to persist changes.');
+            }
+
+            function deletePlaylist(index) {
+                if (confirm('Are you sure you want to delete this playlist configuration?')) {
+                    playlists.splice(index, 1);
+                    renderPlaylists();
+                    Dashboard.alert('Playlist deleted. Click "Save All Playlists" to persist changes.');
+                }
+            }
+
+            window.editPlaylist = editPlaylist;
+            window.cancelEdit = cancelEdit;
+            window.savePlaylist = savePlaylist;
+            window.deletePlaylist = deletePlaylist;
+
+            document.getElementById('addPlaylistBtn').addEventListener('click', function() {
+                var newPlaylist = {
+                    PlaylistName: 'New Playlist',
+                    PlaylistDuration: 360,
+                    ExcludeTime: 0,
+                    PlaylistUserName: 'username',
+                    SelectedLibraryIds: [],
+                    ExplorationCoefficient: 3,
+                    ExperimentalFilter: false
+                };
+                playlists.push(newPlaylist);
+                renderPlaylists();
+                editPlaylist(playlists.length - 1);
+            });
+
+            document.getElementById('saveAllBtn').addEventListener('click', function() {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
-                    config.PlaylistName = document.querySelector('#PlaylistName').value;
-                    config.PlaylistDuration = document.querySelector('#PlaylistDuration').value;
-                    config.PlaylistUserName = document.querySelector('#PlaylistUserName').value;
-                    config.SelectedLibraryIds = Array.from(document.querySelectorAll('#LibraryCheckboxes input[type="checkbox"]:checked')).map(cb => cb.value);
-                    config.ExplorationCoefficient = document.querySelector('#ExplorationCoefficient').value;
-                    config.ExcludeTime = document.querySelector('#ExcludeTime').value;
-                    config.ExperimentalFilter = document.querySelector('#ExperimentalFilter').checked;
+                    config.Playlists = playlists;
                     ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });
                 });
+            });
 
-                e.preventDefault();
-                return false;
+            document.querySelector('#TemplateConfigPage').addEventListener('pageshow', function() {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
+                    // Load playlists or migrate from old config
+                    if (config.Playlists && config.Playlists.length > 0) {
+                        playlists = config.Playlists;
+                    } else if (config.PlaylistName) {
+                        // Migration: convert old single-playlist config to new format
+                        playlists = [{
+                            PlaylistName: config.PlaylistName,
+                            PlaylistDuration: config.PlaylistDuration,
+                            ExcludeTime: config.ExcludeTime || 0,
+                            PlaylistUserName: config.PlaylistUserName,
+                            SelectedLibraryIds: config.SelectedLibraryIds || [],
+                            ExplorationCoefficient: config.ExplorationCoefficient || 3,
+                            ExperimentalFilter: config.ExperimentalFilter || false
+                        }];
+                    }
+                    renderPlaylists();
+                    Dashboard.hideLoadingMsg();
+                });
             });
         </script>
     </div>

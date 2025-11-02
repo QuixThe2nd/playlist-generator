@@ -37,30 +37,20 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
     public string Description => "Generate a playlist based on previous listen data + similarity.";
     public string Category => "Library";
 
-    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
+    private void GeneratePlaylistForConfig(PlaylistConfig config, IProgress<double> progress, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        try
-        {
-            _activityDatabase = new ActivityDatabase(_logger, _paths, _fileSystem, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error while generating the playlist.");
-            return Task.CompletedTask;
-        }
-
-        _logger.LogInformation($"Start generating playlist with Exploration {Config.ExplorationCoefficient} " +
-                               $"for {Config.PlaylistUserName}");
+        _logger.LogInformation($"Start generating playlist '{config.PlaylistName}' with Exploration {config.ExplorationCoefficient} " +
+                            $"for {config.PlaylistUserName}");
         
         // get user to identify listen data
-        var currentUser = _userManager.GetUserByName(Config.PlaylistUserName);
+        var currentUser = _userManager.GetUserByName(config.PlaylistUserName);
 
         if (currentUser == null)
         {
-            _logger.LogWarning($"User: {Config.PlaylistUserName} not found. Aborting.");
-            return Task.CompletedTask;
+            _logger.LogWarning($"User: {config.PlaylistUserName} not found. Skipping playlist '{config.PlaylistName}'.");
+            return;
         }
         
         // get all libraries and then filter for music libraries
@@ -69,15 +59,20 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
             .OfType<Folder>()
             .ToList();
         
-        
         var musicLibraries = allFolders.Select(folder => folder as ICollectionFolder)
             .Where(collectionFolder => collectionFolder?.CollectionType == CollectionType.music).ToList();
         
         var selectedLibraries = musicLibraries
-            .Where(cf => Config.SelectedLibraryIds.Contains(cf!.Id))
+            .Where(cf => config.SelectedLibraryIds.Contains(cf!.Id))
             .ToList();
         
-        _logger.LogInformation($"Generating playlist from libraries: {string.Join(", ", selectedLibraries.Select(l => l.Name))}");
+        if (selectedLibraries.Count == 0)
+        {
+            _logger.LogWarning($"No libraries selected for playlist '{config.PlaylistName}'. Skipping.");
+            return;
+        }
+        
+        _logger.LogInformation($"Generating playlist '{config.PlaylistName}' from libraries: {string.Join(", ", selectedLibraries.Select(l => l.Name))}");
         
         // first get all songs
         var songList = new List<ScoredSong>();
@@ -104,19 +99,19 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
 
         if (allAudio.Count <= 0)
         {
-            _logger.LogWarning("No music found.");
-            return Task.CompletedTask;
+            _logger.LogWarning($"No music found for playlist '{config.PlaylistName}'.");
+            return;
         }
         
         // filter out theme songs and songs that are too short
         _logger.LogInformation($"Found {allAudio.Count} songs, filtering out theme songs and short songs.");
         var noThemeSongs = allAudio.Where(song => song.IsThemeMedia == false).ToList();
-        var songs = noThemeSongs.Where(song => (int)((long)(song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond) > Config.ExcludeTime).ToList();
+        var songs = noThemeSongs.Where(song => (int)((long)(song.RunTimeTicks ?? 0) / TimeSpan.TicksPerSecond) > config.ExcludeTime).ToList();
         
         if (songs.Count <= 0)
         {
-            _logger.LogWarning("No music found after filtering.");
-            return Task.CompletedTask;
+            _logger.LogWarning($"No music found after filtering for playlist '{config.PlaylistName}'.");
+            return;
         }
 
         _logger.LogInformation($"Found {songs.Count} songs");
@@ -124,14 +119,13 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         foreach (var song in songs)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             songList.Add(new ScoredSong(song, currentUser, _userDataManager, _libraryManager, _activityDatabase));
         }
 
         // initialise the Recommenders and get some recommendations based on our top
-        var experimentalFilter = Config.ExperimentalFilter;
+        var experimentalFilter = config.ExperimentalFilter;
         PlaylistService playlistServer = new(_playlistManager, _libraryManager);
-        Recommender playlistRecommender = new(_libraryManager, _userDataManager, _activityDatabase, Config.ExplorationCoefficient);
+        Recommender playlistRecommender = new(_libraryManager, _userDataManager, _activityDatabase, config.ExplorationCoefficient);
         
         List<ScoredSong> topSongs = [.. songList.OrderByDescending(song => song.Score).Take(20)];
         var similarBySong = playlistRecommender.RecommendSimilar(topSongs, currentUser);
@@ -146,11 +140,11 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         allSongs.AddRange(favouriteSongs);
         
         // prune songs that are too short or have no ParentId 
-        allSongs = allSongs.Where(song => (song.Song.RunTimeTicks ?? 0 / TimeSpan.TicksPerSecond) >= Config.ExcludeTime 
-                                          && song.Song.ParentId != Guid.Empty).ToList();
+        allSongs = allSongs.Where(song => (song.Song.RunTimeTicks ?? 0 / TimeSpan.TicksPerSecond) >= config.ExcludeTime 
+                                        && song.Song.ParentId != Guid.Empty).ToList();
 
         _logger.LogInformation($"Highest score: {allSongs[0].Score} for song: {allSongs[0].Song.Name}");
-        var assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, Config.PlaylistDuration, 
+        var assembledPlaylist = PlaylistService.AssemblePlaylist(allSongs, config.PlaylistDuration, 
             playlistRecommender, currentUser);
         assembledPlaylist = PlaylistService.GentleShuffle(assembledPlaylist, 10);
 
@@ -158,16 +152,59 @@ public class PlaylistGenerationTask(ILibraryManager libraryManager,
         var allPlaylists = _libraryManager.GetItemList(new InternalItemsQuery{IncludeItemTypes = 
             [BaseItemKind.Playlist]});
 
-        if (allPlaylists.Any(playlist => playlist.Name.Equals(Config.PlaylistName))) 
+        if (allPlaylists.Any(playlist => playlist.Name.Equals(config.PlaylistName))) 
         {
-            _logger.LogInformation($"Playlist {Config.PlaylistName} exists. Overwriting.");
-            playlistServer.RemovePlaylist(Config.PlaylistName);
+            _logger.LogInformation($"Playlist {config.PlaylistName} exists. Overwriting.");
+            playlistServer.RemovePlaylist(config.PlaylistName);
         }
 
         // make the playlist
-        playlistServer.CreatePlaylist(Config.PlaylistName, currentUser, assembledPlaylist);
+        playlistServer.CreatePlaylist(config.PlaylistName, currentUser, assembledPlaylist);
 
-        _logger.LogInformation($"Generated personal playlist for {currentUser.Username}.");
+        _logger.LogInformation($"Generated personal playlist '{config.PlaylistName}' for {currentUser.Username}.");
+    }
+
+    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        
+        try
+        {
+            _activityDatabase = new ActivityDatabase(_logger, _paths, _fileSystem, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initializing activity database.");
+            return Task.CompletedTask;
+        }
+
+        // Check if using new multi-playlist config or old single-playlist config
+        if (Config.Playlists == null || Config.Playlists.Count == 0)
+        {
+            _logger.LogWarning("No playlists configured. Please configure at least one playlist.");
+            return Task.CompletedTask;
+        }
+
+        _logger.LogInformation($"Generating {Config.Playlists.Count} playlist(s)");
+
+        // Generate each configured playlist
+        for (int i = 0; i < Config.Playlists.Count; i++)
+        {
+            var playlistConfig = Config.Playlists[i];
+            
+            try
+            {
+                _logger.LogInformation($"Processing playlist {i + 1}/{Config.Playlists.Count}: {playlistConfig.PlaylistName}");
+                GeneratePlaylistForConfig(playlistConfig, progress, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error generating playlist '{playlistConfig.PlaylistName}'. Continuing with next playlist.");
+                // Continue processing other playlists even if one fails
+            }
+        }
+
+        _logger.LogInformation("Finished generating all playlists");
         return Task.CompletedTask;
     }
 

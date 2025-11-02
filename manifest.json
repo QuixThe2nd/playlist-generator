@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Eeeeelias/playlist-generator/refs/heads/main/images/logo.png",
     "versions": [
       {
+        "version": "2.0.0.0",
+        "changelog": "Support Multiple Playlists",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/QuixThe2nd/playlist-generator/releases/download/v2.0.0.0/v2.0.0.0-release.zip",
+        "checksum": "c3c1be44bada172b45689a3357fa1ad4",
+        "timestamp": "2025-11-02T17:18:16Z"
+      },
+      {
         "version": "1.4.1.0",
         "changelog": "Added Jellyfin 10.11.0 compatability",
         "targetAbi": "10.11.0.0",
